@@ -5,8 +5,8 @@ import torch.nn as nn
 padding, shirt, tee, windbreak, mountainwear, fur, hoodies,
 jacket and vest.
 '''
-class SDAE_GCL(nn.module):
-    def _init__(self,input_dim=2068,category_dim=11,hidden_dims=[1000,500],latent_dim=2):
+class SDAE_GCL(nn.Module):
+    def __init__(self,input_dim=2068,category_dim=11,hidden_dims=[1000,500],latent_dim=2):
         super().__init__()
         # conpress 2068 dimenstion features
         self.encoder = nn.Sequential(
@@ -35,13 +35,13 @@ class SDAE_GCL(nn.module):
             # nn.Softmax(dim=1) # Output probabilities for categories
         )
 
-        def forward(self,x):
-            # Input Visual Features (2068)
-            # 1. Encode to latent space (wc-hs coord)
-            latent_iss = self.encoder(x)
-            # Decode back
-            x_hat = self.decoder_visual(latent_iss)
-            c_hat = self.decoder_category(latent_iss)
+    def forward(self,x):
+        # Input Visual Features (2068)
+        # 1. Encode to latent space (wc-hs coord)
+        latent_iss = self.encoder(x)
+        # Decode back
+        x_hat = self.decoder_visual(latent_iss)
+        c_hat = self.decoder_category(latent_iss)
 
-            return x_hat,c_hat,latent_iss
+        return x_hat,c_hat,latent_iss
         
