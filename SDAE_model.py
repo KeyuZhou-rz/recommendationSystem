@@ -6,7 +6,7 @@ padding, shirt, tee, windbreak, mountainwear, fur, hoodies,
 jacket and vest.
 '''
 class SDAE_GCL(nn.Module):
-    def __init__(self,input_dim=2068,category_dim=11,hidden_dims=[1000,500],latent_dim=2):
+    def __init__(self,input_dim=2068,category_dim=4,hidden_dims=[1000,500],latent_dim=2):
         super().__init__()
         # conpress 2068 dimenstion features
         self.encoder = nn.Sequential(

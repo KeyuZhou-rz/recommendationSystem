@@ -7,7 +7,6 @@ import os
 from PIL import Image
 from RGBConvHSV import modify_hsv_img
 from PatternFeatureExtractor import PatternFeatureExtractor, extract_pattern_features
-
 CATEGORY_MAP = {
     'suit': 0, 'sweater': 1, 'padding': 2, 'shirt': 3, 'tee': 4, 
     'windbreak': 5, 'mountainwear': 6, 'fur': 7, 'hoodies': 8, 
@@ -20,44 +19,40 @@ SEARCH_TERM_MAP = {
     'sporty':2,
     'chic':3
 }
-def fetch_data(dataset_dir,num_samples=None):
+def fetch_data(dataset_dir, num_samples=None):
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f'the path {dataset_dir} is not right.')
     
     # store image dir
-    image = []
-    features_list, labels_list = [],[]
+    features_list, labels_list = [], []
+
     print("scanning directory...")
     
-    for root,dir,filenames in os.path(dataset_dir):
+    for root, dir, filenames in os.walk(dataset_dir):
         folder_name = os.path.basename(root).lower()
         label_idx = -1
+
         for term, idx in SEARCH_TERM_MAP.items():
             if term in root:
                 label_idx = idx
                 break
-        # Not any kind of categories we assigned
+        
         if label_idx == -1:
             continue
         
         print(f'Found style folder: {folder_name} -> Label:{label_idx}')
         for filename in filenames:
-            if not filename.lower().endwith(('.png','.jpg','jpeg')):
+            if not filename.lower().endswith(('.png', '.jpg', 'jpeg')):
                 continue
 
-            full_path = os.path.join(root,filename)
-            '''
-            if folder_name not in CATEGORY_MAP:
-                continue
-            label_idx = CATEGORY_MAP[folder_name]
-            '''
+            full_path = os.path.join(root, filename)
             try:
                 pattern_vec = extract_pattern_features(full_path)
                 if pattern_vec is None:
                     continue
 
                 # color vector
-                color_vec = modify_hsv_img(full_path)
+                color_vec = modify_hsv_img(full_path, display_result=False)
                 combined_vec = np.concatenate([pattern_vec, color_vec])
 
                 features_list.append(combined_vec)
@@ -65,12 +60,25 @@ def fetch_data(dataset_dir,num_samples=None):
 
             except Exception as e:
                 print(f'Failed to process {filename}:{e}')
+
     if len(features_list) == 0:
         raise ValueError("No valid images found.")
     
-    x_train = torch.tensor(np.array(features_list),dtype=torch.float32)
-    # Crossentropy need long
-    c_train = torch.tensor(np.array(labels_list),dtype=torch.long)
+
+    data_matrix = np.array(features_list)
+    
+    mean = np.mean(data_matrix, axis=0)
+    std = np.std(data_matrix, axis=0)
+
+    if np.ndim(std) == 0:
+        std = np.array([std])
+    std[std == 0] = 1.0
+    
+    data_matrix = (data_matrix - mean) / std
+
+
+    x_train = torch.tensor(data_matrix, dtype=torch.float32)
+    c_train = torch.tensor(np.array(labels_list), dtype=torch.long)
 
     return x_train, c_train
 
@@ -95,7 +103,7 @@ def train_model(dataset_dir):
     criterion_mse = nn.MSELoss()
     criterion_cat = nn.CrossEntropyLoss() # as loss func
     # hyper para
-    lambda_gcl = 0.5
+    lambda_gcl = 1.0
 
     x_train, c_train = fetch_data(dataset_dir)
     x_train = x_train.to(device)
@@ -136,7 +144,7 @@ def train_model(dataset_dir):
     return model
     
 if __name__ == '__main__':
-    dataset_path = ''
+    dataset_path = 'data'
     if os.path.exists(dataset_path):
         trained_model = train_model(dataset_path)
         # save the outcome
