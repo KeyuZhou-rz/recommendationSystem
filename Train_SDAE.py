@@ -24,7 +24,7 @@ def fetch_data(dataset_dir, num_samples=None):
         raise FileNotFoundError(f'the path {dataset_dir} is not right.')
     
     # store image dir
-    features_list, labels_list = [], []
+    pattern_list, color_list, labels_list = [], [], []
 
     print("scanning directory...")
     
@@ -53,32 +53,38 @@ def fetch_data(dataset_dir, num_samples=None):
 
                 # color vector
                 color_vec = modify_hsv_img(full_path, display_result=False)
-                combined_vec = np.concatenate([pattern_vec, color_vec])
 
-                features_list.append(combined_vec)
+                pattern_list.append(pattern_vec)
+                color_list.append(color_vec)
                 labels_list.append(label_idx)
 
             except Exception as e:
                 print(f'Failed to process {filename}:{e}')
 
-    if len(features_list) == 0:
+    if len(pattern_list) == 0:
         raise ValueError("No valid images found.")
     
 
-    data_matrix = np.array(features_list)
+    pattern_matrix = np.array(pattern_list,dtype=np.float32)
+    color_matrix = np.array(color_list, dtype=np.float32)
+
+    p_mean = np.mean(pattern_matrix, axis=0)
+    p_std = np.std(pattern_matrix,axis=0)
+    # avoid division by zero
+    p_std[p_std == 0] = 1.0
+    pattern_norm = (pattern_matrix - p_mean) / p_std
     
-    mean = np.mean(data_matrix, axis=0)
-    std = np.std(data_matrix, axis=0)
+    c_min = np.min(color_matrix,axis=0)
+    c_max = np.max(color_matrix,axis=0)
+    c_denom = c_max - c_min
+    c_denom[c_denom == 0] = 1.0
+    color_norm = (color_matrix - c_min) / c_denom
 
-    if np.ndim(std) == 0:
-        std = np.array([std])
-    std[std == 0] = 1.0
-    
-    data_matrix = (data_matrix - mean) / std
+    final_matrix = np.concatenate([pattern_norm, color_norm], axis=1)
 
-
-    x_train = torch.tensor(data_matrix, dtype=torch.float32)
+    x_train = torch.tensor(final_matrix, dtype=torch.float32)
     c_train = torch.tensor(np.array(labels_list), dtype=torch.long)
+
 
     return x_train, c_train
 
@@ -94,7 +100,7 @@ def train_model(dataset_dir):
 
     print(f"Using device: {device}")
 
-    model = SDAE_GCL(input_dim=2068, category_dim=num_styles)
+    model = SDAE_GCL(input_dim_pattern=2048, input_dim_color=20, category_dim=num_styles, latent_dim=64)
     model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -103,7 +109,7 @@ def train_model(dataset_dir):
     criterion_mse = nn.MSELoss()
     criterion_cat = nn.CrossEntropyLoss() # as loss func
     # hyper para
-    lambda_gcl = 1.0
+    lambda_gcl = 5.0
 
     x_train, c_train = fetch_data(dataset_dir)
     x_train = x_train.to(device)
